@@ -24,7 +24,7 @@ crawler = RestaurantCrawler()
 crawler.run()
 ```
 Output: `restaurants.xlsx` (tên, địa chỉ, rating, số điện thoại, website, URL...)
-* Nếu muốn thay đổi nơi crawl thì vào file config thay đổi trong phần "DISTRICTS"
+* Nếu muốn thay đổi nơi crawl thì vào file config thay đổi trong phần "SEARCH_QUERY", "DISTRICTS"
 
 ### 2. Thu thập đánh giá
 ```python
@@ -49,3 +49,4 @@ Output: Thư mục `menu_images_output/{restaurant_name}/`
 - Không crawl quá nhanh để tránh bị block
 - Kiểm tra log nếu gặp lỗi
 - Tăng `WAIT_TIME` nếu gặp TimeoutException
+
