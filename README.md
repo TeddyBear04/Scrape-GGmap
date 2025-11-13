@@ -16,14 +16,14 @@ pip install -r requirements.txt
 
 ## 3. Kiến trúc & Luồng dữ liệu
 ```
- ┌────────────────┐      ┌────────────────┐      ┌──────────────────────┐
- │RestaurantCrawler│ ---> │restaurants.xlsx│ ---> │ReviewCrawler / Menu  │
- └────────────────┘      └────────────────┘      │ImageCrawler           │
-																									 └─────────┬──────────┘
-																														 │
-																						┌─────────────────┴────────────────┐
-																						│reviews.xlsx   menu_images_output/│
-																						└──────────────────────────────────┘
+ ┌────────────── ──┐       ┌────────────────┐      ┌──────────────────────┐
+ │RestaurantCrawler│ --->  │restaurants.xlsx│ ---> │ReviewCrawler / Menu  │
+ └─────────────── ─┘       └────────────────┘      │ImageCrawler          │
+                                                   └──────────┬───────────┘
+                                                              │
+                                            ┌─────────────────┴────────────────┐
+                                            │reviews.xlsx   menu_images_output/│
+                                            └──────────────────────────────────┘
 ```
 Mỗi bước phụ thuộc đầu ra của bước trước. Không chạy song song review & menu nếu chưa có `restaurants.xlsx`.
 
