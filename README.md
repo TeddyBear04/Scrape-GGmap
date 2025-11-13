@@ -50,10 +50,6 @@ python restaurant_crawler/restaurant_crawler.py
 ```
 Kết quả: `restaurants.xlsx`.
 
-ASCII sơ đồ:
-```
-DISTRICTS -> Query Builder -> Browser -> Scroll/Load -> Parse Cards -> Deduplicate -> Write Excel
-```
 
 ### 4.2 ReviewCrawler
 Mục tiêu: Thu thập đánh giá chi tiết cho từng nhà hàng.
@@ -75,10 +71,6 @@ python restaurant_crawler/review_crawler.py
 Kết quả: `reviews.xlsx`.
 Lưu ý: Ngôn ngữ nội dung phụ thuộc ngôn ngữ trình duyệt/máy.
 
-ASCII sơ đồ:
-```
-restaurants.xlsx -> Iterate Rows -> Open Place -> Open Reviews -> Scroll -> Extract Blocks -> Write reviews.xlsx
-```
 
 ### 4.3 MenuImageCrawler
 Mục tiêu: Tải ảnh menu & ảnh nổi bật.
@@ -98,10 +90,6 @@ python restaurant_crawler/menu_image_crawler.py
 ```
 Kết quả: Thư mục `menu_images_output/`.
 
-ASCII sơ đồ:
-```
-restaurants.xlsx -> Iterate -> Open Place -> Photos Tab -> Filter Menu/Highlight -> Download -> Save Folder
-```
 
 ## 5. Ví dụ chạy hàng loạt
 ```bash
@@ -126,4 +114,5 @@ Hoặc dừng sau bước 1 nếu chỉ cần danh sách.
 - `restaurants.xlsx`: Danh sách nhà hàng & meta cơ bản.
 - `reviews.xlsx`: Tập hợp đánh giá chi tiết.
 - `menu_images_output/`: Cây thư mục ảnh theo từng nhà hàng.
+
 
