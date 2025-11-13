@@ -26,6 +26,7 @@ class RestaurantCrawler:
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         self.wait = WebDriverWait(self.driver, WAIT_TIME)
         self.restaurants_data = []
+        self.processed_restaurants = set()  # Theo dõi các nhà hàng đã xử lý
 
     # ---------- helpers ----------
     def _wait_feed(self):
@@ -103,30 +104,48 @@ class RestaurantCrawler:
 
     def _get_share_link(self, name):
         """Ưu tiên link từ dialog Share. Fallback dùng current_url hoặc api=1"""
-        # mở dialog Share
+        # Thử mở dialog Share
         try:
-            btn = self.driver.find_element(
+            btn = WebDriverWait(self.driver, 3).until(EC.element_to_be_clickable((
                 By.CSS_SELECTOR,
                 'button[aria-label*="Share"], button[aria-label*="Chia sẻ"]'
-            )
-            btn.click()
-            # input trong dialog
-            link_input = WebDriverWait(self.driver, 8).until(EC.presence_of_element_located((
-                By.CSS_SELECTOR,
-                'div[role="dialog"] input[aria-label*="Link"], div[role="dialog"] input[readonly]'
             )))
-            url = link_input.get_attribute("value") or link_input.get_attribute("aria-label")
-            # đóng dialog
-            ActionChains(self.driver).send_keys("\u001b").perform()  # ESC
-            if url and url.startswith("http"):
-                return url
-        except Exception:
+            btn.click()
+            time.sleep(0.5)  # Chờ dialog mở
+            
+            # Tìm input trong dialog với timeout ngắn
+            try:
+                link_input = WebDriverWait(self.driver, 3).until(EC.presence_of_element_located((
+                    By.CSS_SELECTOR,
+                    'div[role="dialog"] input[aria-label*="Link"], div[role="dialog"] input[readonly], input[type="text"][readonly]'
+                )))
+                url = link_input.get_attribute("value") or link_input.get_attribute("aria-label")
+                
+                # Đóng dialog bằng ESC
+                try:
+                    ActionChains(self.driver).send_keys("\u001b").perform()
+                    time.sleep(0.3)
+                except:
+                    pass
+                
+                if url and url.startswith("http"):
+                    return url
+            except TimeoutException:
+                # Không tìm thấy input, đóng dialog và fallback
+                try:
+                    ActionChains(self.driver).send_keys("\u001b").perform()
+                    time.sleep(0.3)
+                except:
+                    pass
+        except (TimeoutException, NoSuchElementException):
             pass
-        # fallback 1: current_url khi đã ở trang place
+        
+        # Fallback 1: current_url khi đã ở trang place
         cur = self.driver.current_url
         if "/place/" in cur or "cid=" in cur:
             return cur
-        # fallback 2: api=1
+        
+        # Fallback 2: api=1
         q = urllib.parse.quote_plus(name)
         return f"https://www.google.com/maps/search/?api=1&query={q}"
 
@@ -160,12 +179,51 @@ class RestaurantCrawler:
             raise TimeoutException("No results list")
 
         idx = 0
+        consecutive_failures = 0  # Đếm số lần thất bại liên tiếp
+        
         while True:
             cards = self._get_cards()
-            if idx >= len(cards): break
-            el = cards[idx]; idx += 1
-
+            if idx >= len(cards): 
+                break
+            
+            # Nếu quá nhiều lỗi liên tiếp, có thể đã hết kết quả
+            if consecutive_failures >= 5:
+                print("Too many consecutive failures, stopping...")
+                break
+                
+            el = cards[idx]
+            
+            # Lấy identifier trước khi click để kiểm tra trùng lặp
+            try:
+                # Lấy tên từ card để làm identifier
+                card_name = ""
+                name_selectors = [
+                    'div.qBF1Pd',
+                    'a.hfpxzc div.qBF1Pd',
+                    'div[role="article"] div.fontHeadlineSmall',
+                    'div.NrDZNb'
+                ]
+                for sel in name_selectors:
+                    try:
+                        card_name = el.find_element(By.CSS_SELECTOR, sel).text.strip()
+                        if card_name:
+                            break
+                    except NoSuchElementException:
+                        continue
+                
+                # Kiểm tra đã xử lý chưa
+                if card_name and card_name in self.processed_restaurants:
+                    print(f"Skipping duplicate: {card_name}")
+                    idx += 1
+                    continue
+                    
+            except Exception as e:
+                print(f"Error checking card name: {e}")
+            
+            idx += 1
             tries = 0
+            processed_this_item = False
+            
             while tries <= 2:
                 try:
                     self._safe_click_card(el)
@@ -180,6 +238,16 @@ class RestaurantCrawler:
                             'div[role="main"] h1.DUwDvf',
                             'div.x3AX1-LfntMc-header-title-title span'
                         ])
+                    
+                    # Kiểm tra lại trong trang chi tiết
+                    if name in self.processed_restaurants:
+                        print(f"Already processed (detail page): {name}")
+                        try:
+                            self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label*="Back"]').click()
+                            self._wait_feed()
+                        except Exception:
+                            pass
+                        break
 
                     # Address - click để mở rộng nếu cần
                     try:
@@ -295,6 +363,8 @@ class RestaurantCrawler:
                     if "?entry=" in maps_link:  # Làm sạch URL
                         maps_link = maps_link.split("?entry=")[0]
 
+                    # Thêm vào set và data
+                    self.processed_restaurants.add(name)
                     self.restaurants_data.append({
                         "Name": name,
                         "Address": address,
@@ -304,6 +374,9 @@ class RestaurantCrawler:
                         "Google Maps Link": maps_link
                     })
                     print(f"Found: {name} | {address} | {phone} | {rating} ({review_count} reviews)")
+                    
+                    processed_this_item = True
+                    consecutive_failures = 0  # Reset counter
 
                     # Quay lại danh sách
                     try:
@@ -319,10 +392,11 @@ class RestaurantCrawler:
                     tries += 1
                     time.sleep(0.8)
                     cards = self._get_cards()
-                    if idx - 1 < len(cards): el = cards[idx - 1]
+                    if idx - 1 < len(cards): 
+                        el = cards[idx - 1]
                 except TimeoutException as e:
                     print("Timeout while reading details:", repr(e))
-                    # thử quay lại và bỏ item
+                    consecutive_failures += 1
                     try:
                         self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label*="Back"]').click()
                         self._wait_feed()
@@ -331,12 +405,16 @@ class RestaurantCrawler:
                     break
                 except Exception as e:
                     print("Error:", type(e).__name__, repr(e))
+                    consecutive_failures += 1
                     try:
                         self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label*="Back"]').click()
                         self._wait_feed()
                     except Exception:
                         pass
                     break
+            
+            if not processed_this_item:
+                consecutive_failures += 1
 
     def crawl_district(self, d):
         print(f"Crawling restaurants in {d}...")
@@ -351,9 +429,12 @@ class RestaurantCrawler:
         if df.empty:
             print(f"No restaurants found for {d}")
         else:
+            # Loại bỏ duplicate trước khi lưu (tầng an toàn cuối cùng)
+            df = df.drop_duplicates(subset=['Name', 'Address'], keep='first')
             df.to_excel(out, index=False)
-            print(f"Saved {len(self.restaurants_data)} rows -> {out}")
+            print(f"Saved {len(df)} unique rows -> {out}")
         self.restaurants_data = []
+        self.processed_restaurants.clear()  # Reset cho district tiếp theo
 
     def close(self): self.driver.quit()
 
