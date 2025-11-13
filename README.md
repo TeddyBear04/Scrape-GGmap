@@ -16,9 +16,9 @@ pip install -r requirements.txt
 
 ## 3. Kiến trúc & Luồng dữ liệu
 ```
- ┌────────────── ──┐       ┌────────────────┐      ┌──────────────────────┐
+ ┌─────────────────┐       ┌────────────────┐      ┌──────────────────────┐
  │RestaurantCrawler│ --->  │restaurants.xlsx│ ---> │ReviewCrawler / Menu  │
- └─────────────── ─┘       └────────────────┘      │ImageCrawler          │
+ └─────────────────┘       └────────────────┘      │ImageCrawler          │
                                                    └──────────┬───────────┘
                                                               │
                                             ┌─────────────────┴────────────────┐
@@ -114,5 +114,6 @@ Hoặc dừng sau bước 1 nếu chỉ cần danh sách.
 - `restaurants.xlsx`: Danh sách nhà hàng & meta cơ bản.
 - `reviews.xlsx`: Tập hợp đánh giá chi tiết.
 - `menu_images_output/`: Cây thư mục ảnh theo từng nhà hàng.
+
 
 
