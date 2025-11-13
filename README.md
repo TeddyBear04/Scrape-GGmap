@@ -39,7 +39,7 @@ For mỗi quận trong DISTRICTS:
 	Scroll danh sách kết quả (nhiều lần)
 	Với mỗi item hiển thị:
 		Mở chi tiết (panel bên trái / popup)
-		Trích xuất: tên, địa chỉ, rating, số đánh giá, loại hình, điện thoại, website, URL Maps
+		Trích xuất: Name	Address	Phone	Rating	Review Count	Google Maps Link
 	Ghi tạm vào bộ nhớ
 Làm sạch & loại trùng (theo tên + địa chỉ hoặc URL)
 Xuất ra Excel: restaurants.xlsx
@@ -72,7 +72,7 @@ Kết quả: `reviews.xlsx`.
 Lưu ý: Ngôn ngữ nội dung phụ thuộc ngôn ngữ trình duyệt/máy.
 
 
-### 4.3 MenuImageCrawler
+### 4.3 Menu Image Crawler
 Mục tiêu: Tải ảnh menu & ảnh nổi bật.
 Luồng:
 ```
@@ -114,6 +114,7 @@ Hoặc dừng sau bước 1 nếu chỉ cần danh sách.
 - `restaurants.xlsx`: Danh sách nhà hàng & meta cơ bản.
 - `reviews.xlsx`: Tập hợp đánh giá chi tiết.
 - `menu_images_output/`: Cây thư mục ảnh theo từng nhà hàng.
+
 
 
 
