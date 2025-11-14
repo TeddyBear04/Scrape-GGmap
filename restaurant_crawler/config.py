@@ -1,14 +1,12 @@
 # Ho Chi Minh City districts for crawling
 DISTRICTS = [
     # "Quận 1",
-    # "Quận 2",
     # "Quận 3",
     # "Quận 4",
     # "Quận 5",
     # "Quận 6",
     # "Quận 7",
     # "Quận 8",
-    # "Quận 9",
     # "Quận 10",
     # "Quận 11",
     # "Quận 12",
@@ -17,8 +15,8 @@ DISTRICTS = [
     # "Quận Gò Vấp",
     # "Quận Phú Nhuận",
     # "Quận Tân Bình",
-    "Quận Tân Phú",
-    "Quận Thủ Đức",
+    # "Quận Tân Phú",
+    # "Quận Thủ Đức",
 ]
 
 # Search query template
@@ -35,4 +33,5 @@ SCROLL_PAUSE_TIME = 3
 MAX_RETRIES = 3
 
 # Wait time for elements (seconds)
+
 WAIT_TIME = 40
