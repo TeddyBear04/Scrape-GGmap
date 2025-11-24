@@ -278,9 +278,8 @@ class RestaurantCrawler:
                         '[aria-label*="Điện thoại"] .rogA2c'
                     ])
 
-                    # Rating & Reviews count
+                                        # Rating
                     rating = "N/A"
-                    review_count = "0"
                     
                     # Thử nhiều cách khác nhau để lấy rating
                     rating_selectors = [
@@ -322,37 +321,6 @@ class RestaurantCrawler:
                             print(f"Error getting rating from {selector}: {str(e)}")
                             continue
 
-                    # Review count với nhiều cách khác nhau
-                    review_selectors = [
-                        # UI mới
-                        'div.F7nice span:not([aria-hidden="true"])',
-                        'span.HHrUdb',
-                        'div.fontBodyMedium > span',
-                        # UI review panel
-                        'div.jANrlb div.fontBodyMedium span',
-                        # Các aria-label
-                        '[aria-label*="reviews"]',
-                        '[aria-label*="đánh giá"]',
-                        # Text nodes
-                        'span[jsan*="reviews"]',
-                        'button[jsaction*="reviews"]'
-                    ]
-                    
-                    for selector in review_selectors:
-                        try:
-                            element = self.driver.find_element(By.CSS_SELECTOR, selector)
-                            text = element.text.strip()
-                            # Tìm số lượng review, bỏ qua các ký tự không phải số
-                            matches = re.findall(r'(\d+(?:[,\.]\d+)*)', text)
-                            if matches:
-                                review_count = matches[0].replace(',', '').replace('.', '')
-                                break
-                        except NoSuchElementException:
-                            continue
-                        except Exception as e:
-                            print(f"Error getting review count from {selector}: {str(e)}")
-                            continue
-
                     # Link - lấy từ dialog Share hoặc URL hiện tại
                     maps_link = self._get_share_link(name)
                     if "?entry=" in maps_link:  # Làm sạch URL
@@ -365,10 +333,9 @@ class RestaurantCrawler:
                         "Address": address,
                         "Phone": phone,
                         "Rating": rating,
-                        "Review Count": review_count,
                         "Google Maps Link": maps_link
                     })
-                    print(f"Found: {name} | {address} | {phone} | {rating} ({review_count} reviews)")
+                    print(f"Found: {name} | {address} | {phone} | {rating}")
                     
                     processed_this_item = True
                     consecutive_failures = 0  # Reset counter
@@ -497,25 +464,7 @@ class RestaurantCrawler:
                         rating = text.replace(',', '.')
                         break
                 except: continue
-
-            # Review count
-            review_count = "0"
-            review_selectors = [
-                'div.F7nice span:not([aria-hidden="true"])',
-                'span.HHrUdb',
-                'div.fontBodyMedium > span',
-            ]
-            
-            for selector in review_selectors:
-                try:
-                    element = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    text = element.text.strip()
-                    matches = re.findall(r'(\d+(?:[,\.]\d+)*)', text)
-                    if matches:
-                        review_count = matches[0].replace(',', '').replace('.', '')
-                        break
-                except: continue
-
+           
             # Link
             maps_link = self._get_share_link(name)
             if "?entry=" in maps_link:
@@ -528,10 +477,9 @@ class RestaurantCrawler:
                 "Address": address,
                 "Phone": phone,
                 "Rating": rating,
-                "Review Count": review_count,
                 "Google Maps Link": maps_link
             })
-            print(f"  ✓ {name} | {address} | {phone} | {rating} ({review_count} reviews)")
+            print(f"  ✓ {name} | {address} | {phone} | {rating}")
             return True
             
         except Exception as e:
