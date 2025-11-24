@@ -11,7 +11,7 @@ from selenium.webdriver.edge.options import Options as EdgeOptions
 import pandas as pd
 import time, random, re, urllib.parse
 
-# config.py cần có: SEARCH_QUERY, DISTRICTS, WAIT_TIME=25, SCROLL_PAUSE_TIME=1.0
+# config.py cần có: RESTAURANT_NAMES, SEARCH_QUERY_NAME, WAIT_TIME=25, SCROLL_PAUSE_TIME=1.0
 from config import *
 
 class RestaurantCrawler:
@@ -150,27 +150,22 @@ class RestaurantCrawler:
         return f"https://www.google.com/maps/search/?api=1&query={q}"
 
     # ---------- steps ----------
-    def search_restaurants(self, district):
-        q = SEARCH_QUERY.format(district=district)
+    def search_restaurant_by_name(self, restaurant_name):
+        """Tìm kiếm nhà hàng theo tên cụ thể"""
+        q = SEARCH_QUERY_NAME.format(restaurant_name=restaurant_name)
         self.driver.get("https://www.google.com/maps")
         self._maybe_consent()
         box = self.wait.until(EC.presence_of_element_located((By.ID, "searchboxinput")))
         box.clear(); box.send_keys(q); box.send_keys(Keys.ENTER)
-        self._wait_feed(); self._ensure_list_mode()
-
-    def scroll_results(self):
-        feed = self._wait_feed()
-        last = len(self._get_cards()); stagnants = 0
-        while True:
-            self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", feed)
-            time.sleep(random.uniform(max(0.2, SCROLL_PAUSE_TIME - 0.5), SCROLL_PAUSE_TIME + 0.5))
-            cur = len(self._get_cards())
-            if cur == last:
-                stagnants += 1
-                if stagnants >= 2: break
-            else:
-                stagnants = 0
-            last = cur
+        time.sleep(2)
+        # Nếu chỉ có 1 kết quả, Google Maps sẽ tự động mở trang chi tiết
+        # Nếu có nhiều kết quả, sẽ hiện list
+        try:
+            self._wait_feed()
+            self._ensure_list_mode()
+        except TimeoutException:
+            # Có thể đã vào trang chi tiết trực tiếp
+            pass
 
     def extract_restaurant_info(self):
         self._ensure_list_mode()
@@ -416,37 +411,176 @@ class RestaurantCrawler:
             if not processed_this_item:
                 consecutive_failures += 1
 
-    def crawl_district(self, d):
-        print(f"Crawling restaurants in {d}...")
-        self.search_restaurants(d)
-        self.scroll_results()
-        self.extract_restaurant_info()
+    def extract_single_restaurant(self, restaurant_name):
+        """Lấy thông tin 1 nhà hàng cụ thể (khi tìm kiếm trực tiếp)"""
+        print(f"  Extracting info for: {restaurant_name}")
+        
+        try:
+            # Kiểm tra xem có đang ở trang chi tiết không
+            try:
+                name_el = self._wait_details_name()
+                # Đang ở trang chi tiết, lấy thông tin luôn
+                name = name_el.text.strip()
+            except TimeoutException:
+                # Có thể đang ở list view, thử click vào kết quả đầu tiên
+                try:
+                    cards = self._get_cards()
+                    if cards:
+                        self._safe_click_card(cards[0])
+                        time.sleep(2)
+                        name_el = self._wait_details_name()
+                        name = name_el.text.strip()
+                    else:
+                        print(f"  No results found for {restaurant_name}")
+                        return False
+                except Exception as e:
+                    print(f"  Error clicking card: {e}")
+                    return False
+            
+            if not name:
+                print(f"  Could not get name for {restaurant_name}")
+                return False
+                
+            # Kiểm tra đã xử lý chưa
+            if name in self.processed_restaurants:
+                print(f"  Already processed: {name}")
+                return True
+            
+            # Address - click để mở rộng nếu cần
+            try:
+                addr_btn = self.driver.find_element(By.CSS_SELECTOR,
+                    'button[data-item-id="address"], button[data-tooltip="Copy address"]')
+                addr_btn.click()
+                time.sleep(0.5)
+            except: pass
 
-    def save_to_excel(self, d):
-        safe = d.replace(' ', '_').replace('.', '').lower()
-        out = f"restaurants_{safe}.xlsx"
-        df = pd.DataFrame(self.restaurants_data)
-        if df.empty:
-            print(f"No restaurants found for {d}")
-        else:
-            # Loại bỏ duplicate trước khi lưu (tầng an toàn cuối cùng)
-            df = df.drop_duplicates(subset=['Name', 'Address'], keep='first')
-            df.to_excel(out, index=False)
-            print(f"Saved {len(df)} unique rows -> {out}")
-        self.restaurants_data = []
-        self.processed_restaurants.clear()  # Reset cho district tiếp theo
+            address = self._first_text([
+                'button[data-item-id="address"] div.rogA2c',
+                'div[data-item-id="address"] div.rogA2c',
+                'button[data-tooltip="Copy address"] div.rogA2c',
+                '[data-tooltip*="address"] .rogA2c',
+                'div[aria-label*="Address"] .rogA2c',
+                'div[aria-label*="Địa chỉ"] .rogA2c'
+            ])
+
+            # Phone - click để hiện số điện thoại
+            try:
+                phone_btn = self.driver.find_element(By.CSS_SELECTOR,
+                    'button[data-item-id*="phone"], button[aria-label*="phone"]')
+                phone_btn.click()
+                time.sleep(0.5)
+            except: pass
+
+            phone = self._first_text([
+                'div[data-item-id*="phone"] div.rogA2c',
+                'button[data-item-id*="phone"] div.rogA2c',
+                '[data-tooltip*="phone"] div.rogA2c',
+                'a[data-item-id*="phone"]',
+                '[aria-label*="Phone:"] .rogA2c',
+                '[aria-label*="Điện thoại"] .rogA2c'
+            ])
+
+            # Rating
+            rating = "N/A"
+            rating_selectors = [
+                'div.F7nice span[aria-hidden="true"]',
+                'span.ceNzKf',
+                'div.fontDisplayLarge',
+                'div.jANrlb div.fontDisplayLarge',
+            ]
+            
+            for selector in rating_selectors:
+                try:
+                    element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    text = element.text.strip()
+                    if text and re.match(r'\d+[.,]?\d*', text):
+                        rating = text.replace(',', '.')
+                        break
+                except: continue
+
+            # Review count
+            review_count = "0"
+            review_selectors = [
+                'div.F7nice span:not([aria-hidden="true"])',
+                'span.HHrUdb',
+                'div.fontBodyMedium > span',
+            ]
+            
+            for selector in review_selectors:
+                try:
+                    element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    text = element.text.strip()
+                    matches = re.findall(r'(\d+(?:[,\.]\d+)*)', text)
+                    if matches:
+                        review_count = matches[0].replace(',', '').replace('.', '')
+                        break
+                except: continue
+
+            # Link
+            maps_link = self._get_share_link(name)
+            if "?entry=" in maps_link:
+                maps_link = maps_link.split("?entry=")[0]
+
+            # Thêm vào data
+            self.processed_restaurants.add(name)
+            self.restaurants_data.append({
+                "Name": name,
+                "Address": address,
+                "Phone": phone,
+                "Rating": rating,
+                "Review Count": review_count,
+                "Google Maps Link": maps_link
+            })
+            print(f"  ✓ {name} | {address} | {phone} | {rating} ({review_count} reviews)")
+            return True
+            
+        except Exception as e:
+            print(f"  Error extracting info for {restaurant_name}: {e}")
+            return False
+    
+    def crawl_restaurant(self, restaurant_name):
+        """Crawl 1 nhà hàng theo tên"""
+        print(f"\n{'='*60}")
+        print(f"Crawling: {restaurant_name}")
+        print(f"{'='*60}")
+        
+        try:
+            self.search_restaurant_by_name(restaurant_name)
+            time.sleep(1)
+            success = self.extract_single_restaurant(restaurant_name)
+            
+            if not success:
+                print(f"  ✗ Failed to crawl: {restaurant_name}")
+        except Exception as e:
+            print(f"  Error crawling {restaurant_name}: {e}")
 
     def close(self): self.driver.quit()
 
 def main():
-        crawler = RestaurantCrawler()
-        try:
-            for district in DISTRICTS:
-                crawler.crawl_district(district)
-                crawler.save_to_excel(district)
-                time.sleep(random.uniform(2, 5))
-        finally:
-            crawler.close()
+    crawler = RestaurantCrawler()
+    try:
+        # Crawl theo danh sách tên nhà hàng
+        print(f"\nTotal restaurants to crawl: {len(RESTAURANT_NAMES)}")
+        print("="*60)
+        
+        for idx, restaurant_name in enumerate(RESTAURANT_NAMES, 1):
+            print(f"\n[{idx}/{len(RESTAURANT_NAMES)}] Processing: {restaurant_name}")
+            crawler.crawl_restaurant(restaurant_name)
+            time.sleep(random.uniform(1, 3))  # Delay giữa các tìm kiếm
+        
+        # Lưu tất cả vào 1 file
+        output_file = "restaurants_danang_hoian3.xlsx"
+        df = pd.DataFrame(crawler.restaurants_data)
+        if df.empty:
+            print("\nNo restaurants found")
+        else:
+            df = df.drop_duplicates(subset=['Name', 'Address'], keep='first')
+            df.to_excel(output_file, index=False)
+            print(f"\n{'='*60}")
+            print(f"Saved {len(df)} restaurants -> {output_file}")
+            print(f"{'='*60}")
+    finally:
+        crawler.close()
 
 if __name__ == "__main__":
     main()
